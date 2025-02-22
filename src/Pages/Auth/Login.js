@@ -1,5 +1,4 @@
-// LoginPage.js
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Container, Row, Col, Form, Button } from "react-bootstrap";
 import Particles from "react-tsparticles";
 import { loadFull } from "tsparticles";
@@ -7,33 +6,21 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import { Link, useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import axios from "axios";
-import { loginAPI } from "../../utils/ApiRequest";
 
 const Login = () => {
   const navigate = useNavigate();
-
   const [loading, setLoading] = useState(false);
+  const [values, setValues] = useState({ email: "", password: "" });
 
   useEffect(() => {
-    if (localStorage.getItem("user")) {
+    if (localStorage.getItem("isAuthenticated") === "true") {
       navigate("/");
     }
   }, [navigate]);
 
-  const [values, setValues] = useState({
-    email: "",
-    password: "",
-  });
-
   const toastOptions = {
     position: "bottom-right",
     autoClose: 2000,
-    hideProgressBar: false,
-    closeOnClick: true,
-    pauseOnHover: false,
-    draggable: true,
-    progress: undefined,
     theme: "dark",
   };
 
@@ -41,94 +28,50 @@ const Login = () => {
     setValues({ ...values, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-
     const { email, password } = values;
+
+    if (!email || !password) {
+      toast.error("Please fill in all fields", toastOptions);
+      return;
+    }
 
     setLoading(true);
 
-    const { data } = await axios.post(loginAPI, {
-      email,
-      password,
-    });
-
-    if (data.success === true) {
-      localStorage.setItem("user", JSON.stringify(data.user));
-      navigate("/");
-      toast.success(data.message, toastOptions);
-      setLoading(false);
+    // Retrieve users from localStorage
+    const users = JSON.parse(localStorage.getItem("users")) || [];
+    
+    // Check if user exists
+    const user = users.find((user) => user.email === email && user.password === password);
+    
+    if (!user) {
+      toast.error("Invalid email or password!", toastOptions);
     } else {
-      toast.error(data.message, toastOptions);
-      setLoading(false);
+      toast.success("Login successful!", toastOptions);
+      localStorage.setItem("isAuthenticated", "true");
+      localStorage.setItem("user", JSON.stringify(user));
+      setTimeout(() => navigate("/"), 1000);
     }
+
+    setLoading(false);
   };
-
-  const particlesInit = useCallback(async (engine) => {
-    // console.log(engine);
-    await loadFull(engine);
-  }, []);
-
-  const particlesLoaded = useCallback(async (container) => {
-    // await console.log(container);
-  }, []);
 
   return (
     <div style={{ position: "relative", overflow: "hidden" }}>
       <Particles
         id="tsparticles"
-        init={particlesInit}
-        loaded={particlesLoaded}
+        init={async (engine) => await loadFull(engine)}
         options={{
-          background: {
-            color: {
-              value: "#000",
-            },
-          },
+          background: { color: { value: "#000" } },
           fpsLimit: 60,
           particles: {
-            number: {
-              value: 200,
-              density: {
-                enable: true,
-                value_area: 800,
-              },
-            },
-            color: {
-              value: "#ffcc00",
-            },
-            shape: {
-              type: "circle",
-            },
-            opacity: {
-              value: 0.5,
-              random: true,
-            },
-            size: {
-              value: 3,
-              random: { enable: true, minimumValue: 1 },
-            },
-            links: {
-              enable: false,
-            },
-            move: {
-              enable: true,
-              speed: 2,
-            },
-            life: {
-              duration: {
-                sync: false,
-                value: 3,
-              },
-              count: 0,
-              delay: {
-                random: {
-                  enable: true,
-                  minimumValue: 0.5,
-                },
-                value: 1,
-              },
-            },
+            number: { value: 200, density: { enable: true, value_area: 800 } },
+            color: { value: "#ffcc00" },
+            shape: { type: "circle" },
+            opacity: { value: 0.5, random: true },
+            size: { value: 3, random: { enable: true, minimumValue: 1 } },
+            move: { enable: true, speed: 2 },
           },
           detectRetina: true,
         }}
@@ -141,20 +84,15 @@ const Login = () => {
           bottom: 0,
         }}
       />
-      <Container
-        className="mt-5"
-        style={{ position: "relative", zIndex: "2 !important" }}
-      >
+
+      <Container className="mt-5" style={{ position: "relative", zIndex: 2 }}>
         <Row>
           <Col md={{ span: 6, offset: 3 }}>
             <h1 className="text-center mt-5">
-              <AccountBalanceWalletIcon
-                sx={{ fontSize: 40, color: "white" }}
-                className="text-center"
-              />
+              <AccountBalanceWalletIcon sx={{ fontSize: 40, color: "white" }} />
             </h1>
-            <h2 className="text-white text-center ">Login</h2>
-            <Form>
+            <h2 className="text-white text-center">Login</h2>
+            <Form onSubmit={handleSubmit}>
               <Form.Group controlId="formBasicEmail" className="mt-3">
                 <Form.Label className="text-white">Email address</Form.Label>
                 <Form.Control
@@ -176,34 +114,23 @@ const Login = () => {
                   value={values.password}
                 />
               </Form.Group>
-              <div
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexDirection: "column",
-                }}
-                className="mt-4"
-              >
-                <Link to="/forgotPassword" className="text-white lnk">
+
+              <div className="mt-4 text-center">
+                <Link to="/forgotPassword" className="text-white">
                   Forgot Password?
                 </Link>
 
                 <Button
                   type="submit"
-                  className=" text-center mt-3 btnStyle"
-                  onClick={!loading ? handleSubmit : null}
+                  className="text-center mt-3 btnStyle"
                   disabled={loading}
                 >
-                  {loading ? "Signin…" : "Login"}
+                  {loading ? "Signing in…" : "Login"}
                 </Button>
 
                 <p className="mt-3" style={{ color: "#9d9494" }}>
                   Don't Have an Account?{" "}
-                  <Link to="/register" className="text-white lnk">
-                    Register
-                  </Link>
+                  <Link to="/register" className="text-white">Register</Link>
                 </p>
               </div>
             </Form>
@@ -215,4 +142,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Login;

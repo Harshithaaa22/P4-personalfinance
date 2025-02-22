@@ -91,42 +91,44 @@ const Home = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const { title, amount, description, category, date, transactionType } =
-      values;
-
-    if (
-      !title ||
-      !amount ||
-      !description ||
-      !category ||
-      !date ||
-      !transactionType
-    ) {
+  
+    const { title, amount, description, category, date, transactionType } = values;
+  
+    if (!title || !amount || !description || !category || !date || !transactionType) {
       toast.error("Please enter all the fields", toastOptions);
+      return;
     }
+  
     setLoading(true);
-
-    const { data } = await axios.post(addTransaction, {
-      title: title,
-      amount: amount,
-      description: description,
-      category: category,
-      date: date,
-      transactionType: transactionType,
+  
+    const newTransaction = {
+      id: Date.now(), // Unique ID for the transaction
+      title,
+      amount,
+      description,
+      category,
+      date,
+      transactionType,
       userId: cUser._id,
-    });
-
-    if (data.success === true) {
-      toast.success(data.message, toastOptions);
-      handleClose();
-      setRefresh(!refresh);
-    } else {
-      toast.error(data.message, toastOptions);
-    }
-
+    };
+  
+    // Retrieve existing transactions from localStorage
+    const storedTransactions = JSON.parse(localStorage.getItem("transactions")) || [];
+  
+    // Add the new transaction to the array
+    const updatedTransactions = [...storedTransactions, newTransaction];
+  
+    // Save the updated array back to localStorage
+    localStorage.setItem("transactions", JSON.stringify(updatedTransactions));
+  
+    // Update state to trigger UI refresh
+    setTransactions(updatedTransactions);
+    setRefresh(!refresh);
     setLoading(false);
+    toast.success("Transaction added successfully!", toastOptions);
+    handleClose();
   };
+  
 
   const handleReset = () => {
     setType("all");
@@ -403,4 +405,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default Home;

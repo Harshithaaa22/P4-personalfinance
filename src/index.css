@@ -1,5 +1,51 @@
-*{
-    padding: 0px;
-    margin: 0px;
-    /* background-color: black !important;; */
+/* Apply black background only to the body */
+body {
+    background-color: rgb(56, 87, 3);
+    color: white; /* Ensure text is visible */
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Remove global padding & ensure proper spacing */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* Adjust containers */
+.container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Make text and elements readable */
+h1, h2, h3, h4, h5, h6, p {
+    background: transparent;
+    color: white;
+}
+
+/* Buttons should have proper contrast */
+button {
+    background-color: white;
+    color: black;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* Ensure tables and forms don't get black backgrounds */
+table, input, textarea, select {
+    background: white;
+    color: black;
+}
+
+/* Responsive adjustments */
+@media only screen and (max-width: 600px) {
+    .container {
+        padding: 10px;
+    }
 }
