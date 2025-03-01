@@ -1,21 +1,30 @@
 import "./home.css";
 import React, { useEffect, useState } from "react";
 import Header from "../../components/Header";
-import { addTransaction, getTransactions } from "../../utils/ApiRequest";
-import Spinner from "../../components/Spinner";
-import TableData from "./TableData";
-import Analytics from "./Analytics";
+import Spinner from "../../components/Header";
 import { useNavigate } from "react-router-dom";
 import { Button, Modal, Form, Container } from "react-bootstrap";
-import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import BarChartIcon from "@mui/icons-material/BarChart";
+import TableData from "./TableData";
+import Analytics from "./Analytics";
+
 const Home = () => {
   const navigate = useNavigate();
+  const [cUser, setcUser] = useState(null);
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const [refresh, setRefresh] = useState(false);
+  const [frequency, setFrequency] = useState("7");
+  const [type, setType] = useState("all");
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [view, setView] = useState("table");
 
   const toastOptions = {
     position: "bottom-right",
@@ -27,47 +36,90 @@ const Home = () => {
     progress: undefined,
     theme: "dark",
   };
-  const [cUser, setcUser] = useState();
-  const [show, setShow] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [transactions, setTransactions] = useState([]);
-  const [refresh, setRefresh] = useState(false);
-  const [frequency, setFrequency] = useState("7");
-  const [type, setType] = useState("all");
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
-  const [view, setView] = useState("table");
 
-  const handleStartChange = (date) => {
-    setStartDate(date);
-  };
-
-  const handleEndChange = (date) => {
-    setEndDate(date);
-  };
-
-  const handleClose = () => setShow(false);
-  const handleShow = () => setShow(true);
-
+  // Fetch user details from backend
   useEffect(() => {
-    const avatarFunc = async () => {
-      if (localStorage.getItem("user")) {
-        const user = JSON.parse(localStorage.getItem("user"));
-        console.log(user);
-
-        if (user.isAvatarImageSet === false || user.avatarImage === "") {
-          navigate("/setAvatar");
-        }
-        setcUser(user);
-        setRefresh(true);
-      } else {
+    const fetchUserData = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("User not logged in!", toastOptions);
         navigate("/login");
+        return;
+      }
+
+      try {
+        const response = await fetch("http://localhost:4000/api/auth/getUser", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          setcUser(data.user);
+        } else {
+          toast.error("Failed to fetch user data", toastOptions);
+          navigate("/login");
+        }
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        toast.error("Something went wrong!", toastOptions);
       }
     };
 
-    avatarFunc();
+    fetchUserData();
   }, [navigate]);
 
+  // Fetch transactions when cUser is available
+  useEffect(() => {
+    if (!cUser || !cUser._id) return;
+
+    const fetchAllTransactions = async () => {
+      if (!cUser || !cUser._id) return; // Prevent fetching without a valid user
+    
+      setLoading(true);
+    
+      try {
+        const response = await fetch("http://localhost:4000/api/v1/getTransaction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: cUser._id,
+            type,
+            frequency,
+            startDate,
+            endDate,
+          }),
+        });
+    
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+    
+        const data = await response.json();
+        if (data.success) {
+          setTransactions(data.transactions);
+        } else {
+          toast.error("Failed to fetch transactions.", toastOptions);
+        }
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+      }
+    
+      setLoading(false);
+    };
+    
+
+    fetchAllTransactions();
+  }, [cUser, refresh, frequency, type, startDate, endDate]);
+
+  // Modal open/close handlers
+  const handleClose = () => setShow(false);
+  const handleShow = () => setShow(true);
+
+  // Form state
   const [values, setValues] = useState({
     title: "",
     amount: "",
@@ -81,6 +133,14 @@ const Home = () => {
     setValues({ ...values, [e.target.name]: e.target.value });
   };
 
+  const handleStartChange = (date) => {
+    setStartDate(date);
+  };
+
+  const handleEndChange = (date) => {
+    setEndDate(date);
+  };
+
   const handleChangeFrequency = (e) => {
     setFrequency(e.target.value);
   };
@@ -89,92 +149,74 @@ const Home = () => {
     setType(e.target.value);
   };
 
+  // Handle transaction submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+
     const { title, amount, description, category, date, transactionType } = values;
-  
+
     if (!title || !amount || !description || !category || !date || !transactionType) {
       toast.error("Please enter all the fields", toastOptions);
       return;
     }
-  
+
+    if (!cUser || !cUser._id) {
+      toast.error("User not found. Please log in again.", toastOptions);
+      return;
+    }
+
     setLoading(true);
-  
-    const newTransaction = {
-      id: Date.now(), // Unique ID for the transaction
-      title,
-      amount,
-      description,
-      category,
-      date,
-      transactionType,
-      userId: cUser._id,
-    };
-  
-    // Retrieve existing transactions from localStorage
-    const storedTransactions = JSON.parse(localStorage.getItem("transactions")) || [];
-  
-    // Add the new transaction to the array
-    const updatedTransactions = [...storedTransactions, newTransaction];
-  
-    // Save the updated array back to localStorage
-    localStorage.setItem("transactions", JSON.stringify(updatedTransactions));
-  
-    // Update state to trigger UI refresh
-    setTransactions(updatedTransactions);
-    setRefresh(!refresh);
+
+    try {
+      const response = await fetch("http://localhost:4000/api/v1/addTransaction", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          amount,
+          description,
+          category,
+          date,
+          transactionType,
+          userId: cUser._id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Transaction added successfully!", toastOptions);
+        setRefresh(!refresh);
+      } else {
+        toast.error(data.message || "Failed to add transaction.", toastOptions);
+      }
+    } catch (error) {
+      console.error("Error adding transaction:", error);
+      toast.error("Something went wrong. Please try again.", toastOptions);
+    }
+
     setLoading(false);
-    toast.success("Transaction added successfully!", toastOptions);
     handleClose();
   };
-  
 
   const handleReset = () => {
     setType("all");
     setStartDate(null);
     setEndDate(null);
     setFrequency("7");
+    setRefresh(!refresh);
   };
 
-
-  
-
-
-  useEffect(() => {
-
-    const fetchAllTransactions = async () => {
-      try {
-        setLoading(true);
-        console.log(cUser._id, frequency, startDate, endDate, type);
-        const { data } = await axios.post(getTransactions, {
-          userId: cUser._id,
-          frequency: frequency,
-          startDate: startDate,
-          endDate: endDate,
-          type: type,
-        });
-        console.log(data);
-  
-        setTransactions(data.transactions);
-  
-        setLoading(false);
-      } catch (err) {
-        // toast.error("Error please Try again...", toastOptions);
-        setLoading(false);
-      }
-    };
-
-    fetchAllTransactions();
-  }, [refresh, frequency, endDate, type, startDate]);
-
-  const handleTableClick = (e) => {
+  const handleTableClick = () => {
     setView("table");
   };
 
-  const handleChartClick = (e) => {
+  const handleChartClick = () => {
     setView("chart");
   };
+
 
   return (
     <>
@@ -186,9 +228,9 @@ const Home = () => {
         </>
       ) : (
         <>
-          <Container
-            style={{ position: "relative", zIndex: "2 !important", backgroundColor:'black'  }}
-            className="mt-3"
+          <Container 
+            style={{ position: "relative", zIndex: "2 !important", backgroundColor:'#2D336B'  }}
+            className="mt-3 full-screen-container"
           >
             <div className="filterRow">
               <div className="text-white">
@@ -238,6 +280,8 @@ const Home = () => {
                   }`}
                 />
               </div>
+              {/* Display selected filter options */}
+
 
               <div>
                 <Button onClick={handleShow} className="addNew">
@@ -344,6 +388,42 @@ const Home = () => {
               </div>
             </div>
             <br style={{ color: "white" }}></br>
+            {transactions.length > 0 && frequency !== "all" && type !== "all" && (
+  <div style={{ textAlign: "center", color: "white", margin: "20px 0" }}>
+    <h4 style={{ fontWeight: "bold", marginBottom: "15px" }}>Filtered Transactions</h4>
+
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "10px",
+      backgroundColor: "#ddd",
+      padding: "20px",
+      borderRadius: "10px",
+      maxWidth: "500px",
+      margin: "auto",
+      boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.2)"
+    }}>
+      {transactions.map((txn) => (
+        <div key={txn._id} style={{
+          backgroundColor: "#2D336B",
+          padding: "10px 15px",
+          borderRadius: "8px",
+          width: "100%",
+          textAlign: "center",
+          color: "#fff",
+          fontSize: "16px",
+          fontWeight: "500"
+        }}>
+          {txn.title} - ₹{txn.amount} ({txn.transactionType})
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+
+
 
             {frequency === "custom" ? (
               <>
@@ -398,6 +478,8 @@ const Home = () => {
               </>
             )}
             <ToastContainer />
+            
+
           </Container>
         </>
       )}
